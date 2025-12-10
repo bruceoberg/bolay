@@ -9,7 +9,7 @@ import unicodedata
 from enum import Enum, auto
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Iterable
 
 @dataclass
 class SFontKey:
@@ -280,6 +280,21 @@ class SRect: # tag = rect
 		self.posMin.Shift(dXLeft, dYTop)
 		self.posMax.Shift(dXRight, dYBottom)
 		return self
+
+def RectBoundingBox(iRect: Iterable[SRect]) -> SRect:
+	if not iRect:
+		return SRect()
+	
+	iterRect = iter(iRect)
+	rectReturn = next(iterRect).Copy()
+
+	for rectNext in iterRect:
+		rectReturn.xMin = min(rectReturn.xMin, rectNext.xMin)
+		rectReturn.yMin = min(rectReturn.yMin, rectNext.yMin)
+		rectReturn.xMax = max(rectReturn.xMax, rectNext.xMax)
+		rectReturn.yMax = max(rectReturn.yMax, rectNext.yMax)
+
+	return rectReturn
 
 def FHasAnyRtl(strText: str) -> bool:
 	for ch in strText:
