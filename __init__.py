@@ -26,17 +26,7 @@ class CPdf(fpdf.FPDF):
 		'a2': (1190.55, 1683.78),
 		'a3': (841.89, 1190.55),
 		'a4': (595.28, 841.89),
-		# fpdf.PAGE_FORMATS is wrong about a5.
-		# they list the short side as 420.94pt.
-		#	(their long side is correctly listed as 595.28pt)
-		# ISO std a5 short side is 148mm. this table is in pts.
-		# excel tells me that 148mm / 25.4 is 5.83in.
-		#	and 5.83in * 72 is 419.53pt.
-		# so i have no idea where fpdf's 420.94pt comes from.
-		# on github, it appears to have been this way since
-		#	the original source was checked added in 2008.
-		# probably doesn't matter, since the conversion rounds
-		#	to the correct size in mm
+		# fpdf.PAGE_FORMATS is wrong about a5. see https://github.com/py-pdf/fpdf2/issues/1699
 		'a5': (419.53, 595.28),
 		'a6': (297.64, 419.53),
 		'a7': (209.76, 297.64),
@@ -65,9 +55,17 @@ class CPdf(fpdf.FPDF):
 		'ledger': (792.00, 1224.00),
 		'tabloid': (792.00, 1224.00),
 		'executive': (521.86, 756.00),
-		'ansi c': (1224.57, 1584.57),
-		'ansi d': (1584.57, 2449.13),
-		'ansi e': (2449.13, 3169.13),
+		'ansi-a': (612.00, 792.00),
+		'ansi-b': (612.00, 1008.00),
+		'ansi-c': (1224.57, 1584.57),
+		'ansi-d': (1584.57, 2449.13),
+		'ansi-e': (2449.13, 3169.13),
+		'arch-a': (648.00, 864.00),
+		'arch-b': (864.00, 1296.00),
+		'arch-c': (1296.00, 1728.00),
+		'arch-d': (1728.00, 2592.00),
+		'arch-e': (2592.00, 3456.00),
+		'arch-e1': (2160.00, 3024.00),
 		'sra0': (2551.18, 3628.35),
 		'sra1': (1814.17, 2551.18),
 		'sra2': (1275.59, 1814.17),
