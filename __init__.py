@@ -84,19 +84,21 @@ class CPdf(fpdf.FPDF):
 		'sra2': (1275.59, 1814.17),		# 450mm x 640mm
 		'sra3': (907.09, 1275.59),		# 320mm x 450mm
 		'sra4': (637.80, 907.09),		# 225mm x 320mm
-		# photo sizes with very obscure names
-		#  see https://en.wikipedia.org/wiki/Photo_print_sizes
-		'8x10': (576.00, 720.00),		# 8in x 10in aka 8R
-		'16x20': (1152.00, 1440.00),	# 16in x 20in aka 16R
-		'11x14': (792.00, 1224.00),		# 11in x 14in aka 11R
-		'22x28': (1584.00, 2016.00),	# 22in x 28in (22R is NOT this!)
-		# office depot exclusive?
-		'40x60': (2880.00, 4320.00),	# 40in x 60in
+		# photo sizes see https://en.wikipedia.org/wiki/Photo_print_sizes
+		'8R': (576.00, 720.00),			# 8in x 10in
+		'11R': (792.00, 1224.00),		# 11in x 14in
+		'16R': (1152.00, 1440.00),		# 16in x 20in
 		# convenient aliases - often offered by american print shops
+		'8x10': (576.00, 720.00),		# 8in x 10in aka 8R
+		'11x14': (792.00, 1224.00),		# 11in x 14in aka 11R
 		'12x18': (864.00, 1296.00),		# 12in x 18in aka arch-b
+		'16x20': (1152.00, 1440.00),	# 16in x 20in aka 16R
 		'18x24': (1296.00, 1728.00),	# 18in x 24in aka arch-c
+		'22x28': (1584.00, 2016.00),	# 22in x 28in (22R is NOT this!)
 		'24x36': (1728.00, 2592.00),	# 24in x 36in aka arch-d
 		'36x48': (2592.00, 3456.00),	# 36in x 48in aka arch-e
+		# office depot exclusive?
+		'40x60': (2880.00, 4320.00),	# 40in x 60in
 	}
 
 	def __init__(self):
