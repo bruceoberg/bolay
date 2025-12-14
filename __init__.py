@@ -21,19 +21,19 @@ class SFontKey:
 
 class CPdf(fpdf.FPDF):
 	s_mpStrFormatWH: dict[str, tuple[float, float]] = {
-		# all sizes pulled from https://en.wikipedia.org/wiki/Paper_size
+		# most sizes pulled from https://en.wikipedia.org/wiki/Paper_size
 		# and converted to points (1/72nd of an inch). inches are 25.4 mm by definition.
 		'letter': (612.00, 792.00),		# 8.5in x 11in
 		'legal': (612.00, 1008.00),		# 8.5in x 14in
 		'ledger': (792.00, 1224.00),	# 11in x 17in
 		'tabloid': (792.00, 1224.00),	# 11in x 17in
-		'executive': (521.86, 756.00),	# 7.25in x 10.5in
+		'executive': (522.00, 756.00),	# 7.25in x 10.5in
 		# ANSI
 		'ansi-a': (612.00, 792.00),		# 8.5in x 11in
-		'ansi-b': (612.00, 1008.00),	# 11in x 17in
-		'ansi-c': (1224.57, 1584.57),	# 17in x 22in
-		'ansi-d': (1584.57, 2449.13),	# 22in x 34in
-		'ansi-e': (2449.13, 3169.13),	# 34in x 44in
+		'ansi-b': (792.00, 1224.00),	# 11in x 17in
+		'ansi-c': (1224.00, 1584.00),	# 17in x 22in
+		'ansi-d': (1584.00, 2448.00),	# 22in x 34in
+		'ansi-e': (2448.00, 3168.00),	# 34in x 44in
 		# Architectural
 		'arch-a': (648.00, 864.00),		# 9in x 12in
 		'arch-b': (864.00, 1296.00),	# 12in x 18in
@@ -41,8 +41,8 @@ class CPdf(fpdf.FPDF):
 		'arch-d': (1728.00, 2592.00),	# 24in x 36in
 		'arch-e': (2592.00, 3456.00),	# 36in x 48in
 		'arch-e1': (2160.00, 3024.00),	# 30in x 42in
-		'arch-e2': (1870.87, 2735.43),	# 26in × 38in
-		'arch-e3': (1944.57, 2809.13),	# 27in × 39in
+		'arch-e2': (1872.00, 2736.00),	# 26in × 38in
+		'arch-e3': (1944.00, 2808.00),	# 27in × 39in
 		# ISO 216
 		'a0': (2383.94, 3370.39),		# 841mm x 1189mm
 		'a1': (1683.78, 2383.94),		# 594mm x 841mm
@@ -84,6 +84,19 @@ class CPdf(fpdf.FPDF):
 		'sra2': (1275.59, 1814.17),		# 450mm x 640mm
 		'sra3': (907.09, 1275.59),		# 320mm x 450mm
 		'sra4': (637.80, 907.09),		# 225mm x 320mm
+		# photo sizes with very obscure names
+		#  see https://en.wikipedia.org/wiki/Photo_print_sizes
+		'8x10': (576.00, 720.00),		# 8in x 10in aka 8R
+		'16x20': (1152.00, 1440.00),	# 16in x 20in aka 16R
+		'11x14': (792.00, 1224.00),		# 11in x 14in aka 11R
+		'22x28': (1584.00, 2016.00),	# 22in x 28in (22R is NOT this!)
+		# office depot exclusive?
+		'40x60': (2880.00, 4320.00),	# 40in x 60in
+		# convenient aliases - often offered by american print shops
+		'12x18': (864.00, 1296.00),		# 12in x 18in aka arch-b
+		'18x24': (1296.00, 1728.00),	# 18in x 24in aka arch-c
+		'24x36': (1728.00, 2592.00),	# 24in x 36in aka arch-d
+		'36x48': (2592.00, 3456.00),	# 36in x 48in aka arch-e
 	}
 
 	def __init__(self):
