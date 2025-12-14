@@ -1,0 +1,18 @@
+[project]
+name = "bolay"
+version = "1.0.0"
+description = "Library for laying out PDF files"
+authors = [
+    { name = "bruce oberg", email = "bruce@oberg.org" }
+]
+requires-python = ">=3.9"
+dependencies = [
+    "arabic-reshaper>=3.0.0",
+    "fpdf2>=2.8.1",
+    "python-bidi>=0.6.3",
+    "unicategories>=0.1.2",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.13,<0.10.0"]
+build-backend = "uv_build"
