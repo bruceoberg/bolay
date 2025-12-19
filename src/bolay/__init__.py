@@ -43,17 +43,19 @@ class CPdf(fpdf.FPDF):
 		'arch-e1': (2160.00, 3024.00),	# 30in x 42in
 		'arch-e2': (1872.00, 2736.00),	# 26in × 38in
 		'arch-e3': (1944.00, 2808.00),	# 27in × 39in
-		# ISO 216
+		# ISO 216 https://en.wikipedia.org/wiki/ISO_216
+		# fpdf.PAGE_FORMATS is wrong about a5. see https://github.com/py-pdf/fpdf2/issues/1699
 		'a0': (2383.94, 3370.39),		# 841mm x 1189mm
 		'a1': (1683.78, 2383.94),		# 594mm x 841mm
-		'a2': (1190.55, 1683.78),		# 420mm x 594 mm
+		'a2': (1190.55, 1683.78),		# 420mm x 594mm
 		'a3': (841.89, 1190.55),		# 297mm x 420mm
 		'a4': (595.28, 841.89),			# 210mm x 297mm
-		# fpdf.PAGE_FORMATS is wrong about a5. see https://github.com/py-pdf/fpdf2/issues/1699
 		'a5': (419.53, 595.28),			# 148mm x 210mm
 		'a6': (297.64, 419.53),			# 105mm x 148mm
 		'a7': (209.76, 297.64),			# 74mm x 105mm
 		'a8': (147.40, 209.76),			# 52mm x 74mm
+		'a9': (104.88, 147.40),			# 37mm x 52mm
+		'a10': (73.70, 104.88),			# 26mm x 37mm
 		'b0': (2834.65, 4008.19),		# 1000mm x 1414mm
 		'b1': (2004.09, 2834.65),		# 707mm x 1000mm
 		'b2': (1417.32, 2004.09),		# 500mm x 707mm
@@ -72,8 +74,11 @@ class CPdf(fpdf.FPDF):
 		'c4': (649.13, 918.43),			# 229mm x 324mm
 		'c5': (459.21, 649.13),			# 162mm x 229mm
 		'c6': (323.15, 459.21),			# 114mm x 162mm
-		'd0': (2185.51, 3089.76),		# 764mm x 1064mm
-		# ISO 217 Raw & Special Raw
+		'c7': (229.61, 323.15),			# 81mm x 114mm
+		'c8': (161.57, 229.61),			# 57mm x 81mm
+		'c9': (113.39, 161.57),			# 40mm x 57mm
+		'c10': (79.37, 113.39),			# 28mm x 40mm
+		# ISO 217 Raw & Special Raw https://en.wikipedia.org/wiki/ISO_217
 		'ra0': (2437.80, 3458.27),		# 860mm x 1220mm
 		'ra1': (1729.13, 2437.80),		# 610mm x 860mm
 		'ra2': (1218.90, 1729.13),		# 430mm x 610mm
@@ -97,8 +102,7 @@ class CPdf(fpdf.FPDF):
 		'22x28': (1584.00, 2016.00),	# 22in x 28in (22R is NOT this!)
 		'24x36': (1728.00, 2592.00),	# 24in x 36in aka arch-d
 		'36x48': (2592.00, 3456.00),	# 36in x 48in aka arch-e
-		# office depot exclusive?
-		'40x60': (2880.00, 4320.00),	# 40in x 60in
+		'40x60': (2880.00, 4320.00),	# 40in x 60in office depot exclusive?
 	}
 
 	def __init__(self):
