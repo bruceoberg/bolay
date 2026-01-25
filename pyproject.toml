@@ -5,7 +5,7 @@ description = "Library for laying out PDF files"
 authors = [
     { name = "bruce oberg", email = "bruce@oberg.org" }
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 dependencies = [
     "arabic-reshaper>=3.0.0",
     "fpdf2>=2.8.1",

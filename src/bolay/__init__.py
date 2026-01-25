@@ -6,10 +6,45 @@ import fpdf
 import unicategories
 import unicodedata
 
-from enum import Enum, auto
+from enum import IntEnum, auto
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Iterable
+
+class IntEnum0(IntEnum):
+    """IntEnum that uses auto() starting from 0."""
+    
+    @staticmethod
+    def _generate_next_value_(name, start, count, last_values):
+        """Override to start auto() at 0 instead of 1."""
+        return count
+
+class EnumTuple[TEnum: IntEnum0, TValue]:
+    """Fixed-size tuple indexed by enum values."""
+    
+    def __init__(self, clsEnum: type[TEnum], mpEnumValue: tuple[TValue, ...]):
+        self.clsEnum = clsEnum
+        self.mpEnumValue = mpEnumValue
+        
+        # Get all enum members
+        lEnum = list(clsEnum)
+        cEnumExpected = len(lEnum)
+        
+        assert len(mpEnumValue) == cEnumExpected, \
+            f"EnumTuple for {clsEnum.__name__} requires {cEnumExpected} elements, got {len(mpEnumValue)}"
+        
+        # Validate contiguity: enum values should be 0, 1, 2, ..., cEnumExpected-1
+        lValue = sorted([m.value for m in lEnum])
+        assert lValue == list(range(cEnumExpected)), \
+            f"EnumTuple requires {clsEnum.__name__} to have contiguous values 0..{cEnumExpected-1}, got {lValue}"
+    
+    def __getitem__(self, key: TEnum | int) -> TValue:
+        if isinstance(key, self.clsEnum):
+            return self.mpEnumValue[key.value]
+        return self.mpEnumValue[key]
+    
+    def __len__(self) -> int:
+        return len(self.mpEnumValue)
 
 @dataclass
 class SFontKey:
@@ -129,12 +164,12 @@ class CPdf(fpdf.FPDF):
 		assert strOrientation in ("l", "landscape")
 		return (dYPt / self.k, dXPt / self.k)
 
-class JH(Enum):
+class JH(IntEnum0):
 	Left = auto()
 	Center = auto()
 	Right = auto()
 
-class JV(Enum):
+class JV(IntEnum0):
 	Bottom = auto()
 	Middle = auto()
 	Top = auto()
