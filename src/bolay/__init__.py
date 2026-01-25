@@ -9,7 +9,7 @@ import unicodedata
 from enum import IntEnum, auto
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Iterator
 
 class IntEnum0(IntEnum):
     """IntEnum that uses auto() starting from 0."""
@@ -46,6 +46,18 @@ class EnumTuple[TEnum: IntEnum0, TValue]:
     def __len__(self) -> int:
         return len(self.mpEnumValue)
 
+    def keys(self) -> Iterator[TEnum]:
+        """Return iterator over enum members."""
+        return iter(self.clsEnum)
+    
+    def values(self) -> Iterator[TValue]:
+        """Return iterator over values."""
+        return iter(self.mpEnumValue)
+    
+    def items(self) -> Iterator[tuple[TEnum, TValue]]:
+        """Return iterator over (enum, value) pairs."""
+        return zip(self.clsEnum, self.mpEnumValue)
+		
 @dataclass
 class SFontKey:
 	strFont: str
