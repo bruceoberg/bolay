@@ -7,7 +7,7 @@ import unicategories
 import unicodedata
 
 from enum import IntEnum, auto
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional, Iterable, Iterator
 
@@ -379,6 +379,44 @@ def FHasAnyRtl(strText: str) -> bool:
 	return False
 
 @dataclass
+class SBox:
+	"""box drawing parameters. line/fill/expansion/rounded-corners all optional."""
+
+	dSLine: Optional[float] = None
+	colorLine: Optional[SColor] = None
+	colorFill: Optional[SColor] = None
+	dSExpand: Optional[float] = None
+	dSRounded: Optional[float] = None
+
+	def RectDraw(self, pdf: CPdf, rect: SRect) -> SRect:
+		rectDraw = rect.Copy().Outset(self.dSExpand) if self.dSExpand else rect
+
+		if self.dSLine and self.colorLine is not None and self.colorFill is not None:
+			strFillDraw = 'FD'
+		elif self.dSLine and self.colorLine is not None:
+			strFillDraw = 'D'
+		elif self.colorFill is not None:
+			strFillDraw = 'F'
+		else:
+			return rectDraw
+
+		if self.dSLine and self.colorLine is not None:
+			pdf.set_line_width(self.dSLine)
+			pdf.set_draw_color(self.colorLine.r, self.colorLine.g, self.colorLine.b)
+
+		if self.colorFill is not None:
+			pdf.set_fill_color(self.colorFill.r, self.colorFill.g, self.colorFill.b)
+
+		if self.dSRounded:
+			pdf.rect(rectDraw.x, rectDraw.y, rectDraw.dX, rectDraw.dY, style=strFillDraw, round_corners=True, corner_radius=self.dSRounded)
+		else:
+			pdf.rect(rectDraw.x, rectDraw.y, rectDraw.dX, rectDraw.dY, style=strFillDraw, round_corners=False)
+
+		return rectDraw
+	
+	Draw = RectDraw
+
+@dataclass
 class SHaloArgs: # tag = haloa
 	color: SColor
 	uPtLine: float # factor of point size for halo line
@@ -398,7 +436,14 @@ class COneLineTextBox: # tag = oltb
 		self.dSMargin = dSMargin or max(0.0, (self.rect.dY - self.dYCap) / 2.0)
 		self.rectMargin = self.rect.Copy().Inset(self.dSMargin)
 
-	def RectDrawText(self, strText: str, color: SColor, jh : JH = JH.Left, jv: JV = JV.Middle, fShrinkToFit: bool = False, haloa: Optional[SHaloArgs] = None) -> SRect:
+	def RectDrawText(self,
+			strText: str,
+			color: SColor,
+			jh : JH = JH.Left,
+			jv: JV = JV.Middle,
+			fShrinkToFit: bool = False,
+			haloa: Optional[SHaloArgs] = None,
+			box: Optional[SBox] = None) -> SRect:
 		if FHasAnyRtl(strText):
 			strText = arabic_reshaper.reshape(strText)
 			strText = bidi.algorithm.get_display(strText, base_dir='R')
@@ -437,6 +482,11 @@ class COneLineTextBox: # tag = oltb
 			assert jv == JV.Top
 			rectText.y = self.rectMargin.y + rectText.dY
 
+		rectExtent = rectText.Copy().Shift(dY = -rectText.dY)
+
+		if box:
+			rectExtent = box.RectDraw(self.pdf, rectExtent)
+			
 		if haloa:
 			dSLine = self.fonti.dPtFont * haloa.uPtLine
 			with self.pdf.local_context(text_mode="STROKE", line_width=dSLine):
@@ -446,7 +496,7 @@ class COneLineTextBox: # tag = oltb
 		self.pdf.set_text_color(color.r, color.g, color.b)
 		self.pdf.text(rectText.x, rectText.y, strText)
 
-		return rectText.Copy().Shift(dY = -rectText.dY)
+		return rectExtent
 
 	DrawText = RectDrawText
 
@@ -456,21 +506,11 @@ class CBlot: # tag = blot
 	def __init__(self, pdf: CPdf) -> None:
 		self.pdf = pdf
 
-	def DrawBox(self, rect: SRect, dSLine: float, color: SColor, colorFill: Optional[SColor] = None) -> None:
-		if colorFill is None:
-			strFillDraw = 'D'
-		else:
-			strFillDraw = 'FD'
-			self.pdf.set_fill_color(colorFill.r, colorFill.g, colorFill.b)
+	def DrawBox(self, rect: SRect, dSLine: float, colorLine: SColor, colorFill: Optional[SColor] = None) -> None:
+		SBox(dSLine = dSLine, colorLine = colorLine, colorFill = colorFill).Draw(self.pdf, rect)
 
-		self.pdf.set_line_width(dSLine)
-		self.pdf.set_draw_color(color.r, color.g, color.b)
-
-		self.pdf.rect(rect.x, rect.y, rect.dX, rect.dY, style=strFillDraw)
-
-	def FillBox(self, rect: SRect, color: SColor) -> None:
-		self.pdf.set_fill_color(color.r, color.g, color.b)
-		self.pdf.rect(rect.x, rect.y, rect.dX, rect.dY, style='F')
+	def FillBox(self, rect: SRect, colorFill: SColor) -> None:
+		SBox(colorFill = colorFill).Draw(self.pdf, rect)
 
 	def Oltb(self, rect: SRect, fontkey: SFontKey, dYFont: float, dSMargin: Optional[float] = None) ->COneLineTextBox:
 		return COneLineTextBox(self.pdf, rect, fontkey, dYFont, dSMargin)
