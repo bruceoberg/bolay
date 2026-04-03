@@ -436,6 +436,12 @@ class COneLineTextBox: # tag = oltb
 		self.dSMargin = dSMargin or max(0.0, (self.rect.dY - self.dYCap) / 2.0)
 		self.rectMargin = self.rect.Copy().Inset(self.dSMargin)
 
+	def TryDrawText(self, x: float, y: float, strText: str):
+		try:
+			self.pdf.text(x, y, strText)
+		except TypeError:
+			raise UnicodeWarning(f"font {self.fonti.fontkey.strFont} cannot display {repr(strText)}")
+
 	def RectDrawText(self,
 			strText: str,
 			color: SColor,
@@ -491,10 +497,10 @@ class COneLineTextBox: # tag = oltb
 			dSLine = self.fonti.dPtFont * haloa.uPtLine
 			with self.pdf.local_context(text_mode="STROKE", line_width=dSLine):
 				self.pdf.set_draw_color(haloa.color.r, haloa.color.g, haloa.color.b)
-				self.pdf.text(rectText.x, rectText.y, strText)
+				self.TryDrawText(rectText.x, rectText.y, strText)
 
 		self.pdf.set_text_color(color.r, color.g, color.b)
-		self.pdf.text(rectText.x, rectText.y, strText)
+		self.TryDrawText(rectText.x, rectText.y, strText)
 
 		return rectExtent
 
