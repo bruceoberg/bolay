@@ -78,13 +78,42 @@ class SVertExtents: # tag = verx
 	yCap: float = 0
 	yDescender: float = 0
 
-	@property
-	def dY(self) -> float:
-		return self.yAscender - self.yDescender
+@dataclass(frozen=True)
+class SLimit: # tag = lm
+	sMin: float = 0
+	sMax: float = 0
 
-	@property
-	def dYCap(self) -> float:
-		return self.yCap
+# Vertival Extent Kind
+
+class VEK(IntEnum0):
+	BaseCap = auto()		# baseline to cap
+	BaseAscend = auto()		# baseline to ascender
+	DescendCap = auto()		# descender to cap
+	DescendAscend = auto()	# descender to ascender
+
+def LmFromVekVeex(vek: VEK, veex: SVertExtents) -> SLimit:
+	if vek is VEK.BaseCap:
+		return SLimit(0.0, veex.yCap)
+	elif vek is VEK.BaseAscend:
+		return SLimit(0.0, veex.yAscender)
+	elif vek is VEK.DescendCap:
+		return SLimit(veex.yDescender, veex.yCap)
+	
+	assert(vek == VEK.DescendAscend)
+	return SLimit(veex.yDescender, veex.yAscender)
+
+type UVekLm = VEK | SLimit # tag = veklm
+
+# this default reflects the original layout decisions made for the soccer tourney poster.
+# there, we wanted all caps headers to fit tightly in limited spaces, and to do that we 
+# used the font's cap height and laid out ignoring the font's descender. once we started
+# using descender heavy fonts (farsi, portuguese), this assumption was incorrect. so now we have the
+# complex option of using some pair of font layout values (via the VEK) or actually measuring
+# glyph heights (via an SLimit) in order to get text into our headers in a pleasing way.
+# this probably is the wrong choice for a general purpose layout engine.
+
+s_veklmEmDefault: UVekLm = VEK.BaseCap
+
 
 class CPdf(fpdf.FPDF):
 	s_mpStrFormatWH: dict[str, tuple[float, float]] = {
@@ -177,7 +206,8 @@ class CPdf(fpdf.FPDF):
 
 		super().__init__(unit='in')
 
-		# map of fonts and font/glyphs to their vertical extents in em units
+		# maps of fonts and font/glyphs to their vertical extents in em units
+
 		self.mpFontkeyVeexEm: dict[SFontKey, SVertExtents] = {}
 		self.mpFkgVeexEm: dict[SFontkeyGlyph, SVertExtents] = {}
 
@@ -220,17 +250,17 @@ class CPdf(fpdf.FPDF):
 
 		return veexEm
 
-	def VeexEmFromText(self, fontkey: SFontKey, iterStr: Iterable[str]) -> SVertExtents:
+	def LmEmFromText(self, fontkey: SFontKey, vek: VEK, iterStr: Iterable[str]) -> SLimit:
 		"""check if any character in the strings has glyphs that extend below the baseline"""
 
 		font = self.fonts[fontkey.Str()]
 		if not isinstance(font, fpdf.fonts.TTFFont):
-			return self.VeexEm(fontkey)
+			return LmFromVekVeex(vek, self.VeexEm(fontkey))
 
 		desc = font['desc'] if isinstance(font, dict) else font.desc
 		yCapRaw = desc['CapHeight'] if isinstance(desc, dict) else desc.cap_height
 
-		veexEm: Optional[SVertExtents] = None
+		veexEmAggregate: Optional[SVertExtents] = None
 
 		glyphset = font.ttfont.getGlyphSet()
 
@@ -258,16 +288,18 @@ class CPdf(fpdf.FPDF):
 			
 			# incorporate glyph's lm into our final result
 				
-			if veexEm:
-				assert(veexEm.yCap == veexEmGlyph.yCap)
-				veexEm = SVertExtents(
-							max(veexEm.yAscender, veexEmGlyph.yAscender),
-							veexEm.yCap,
-							min(veexEm.yDescender, veexEmGlyph.yDescender))
+			if veexEmAggregate:
+				assert(veexEmAggregate.yCap == veexEmGlyph.yCap)
+				veexEmAggregate = SVertExtents(
+							max(veexEmAggregate.yAscender, veexEmGlyph.yAscender),
+							veexEmAggregate.yCap,
+							min(veexEmAggregate.yDescender, veexEmGlyph.yDescender))
 			else:
-				veexEm = copy.deepcopy(veexEmGlyph)
+				veexEmAggregate = copy.deepcopy(veexEmGlyph)
+
+		veex = veexEmAggregate if veexEmAggregate else self.VeexEm(fontkey)
 				
-		return veexEm if veexEm else self.VeexEm(fontkey)
+		return LmFromVekVeex(vek, veex)
 
 class JH(IntEnum0):
 	Left = auto()
@@ -281,9 +313,11 @@ class JV(IntEnum0):
 
 class CFontInstance:
 	"""a sized font"""
-	def __init__(self, pdf: CPdf, fontkey: SFontKey, dYFont: float) -> None:
+
+	def __init__(self, pdf: CPdf, fontkey: SFontKey, dYFont: float, veklmEm: UVekLm = s_veklmEmDefault) -> None:
 		self.pdf = pdf
 		self.fontkey = fontkey
+		self.veklmEm = veklmEm
 		self.veexEm = pdf.VeexEm(self.fontkey)
 
 		self.SetDyFont(dYFont)
@@ -297,22 +331,24 @@ class CFontInstance:
 						self.SFromSEm(self.veexEm.yAscender),
 						self.SFromSEm(self.veexEm.yCap),
 						self.SFromSEm(self.veexEm.yDescender))
+		
+		if isinstance(self.veklmEm, VEK):
+			self.lmY = LmFromVekVeex(self.veklmEm, self.veex)
+		else:
+			assert(isinstance(self.veklmEm, SLimit))
+			self.lmY = SLimit(
+						self.SFromSEm(self.veklmEm.sMin),
+						self.SFromSEm(self.veklmEm.sMax))
 
 	def SFromSEm(self, sEm: float) -> float:
 		return sEm * self.dYFont / 1000.0
 
 	@property
-	def dY(self) -> float:
-		return self.veex.dY
+	def dYGlyphs(self) -> float:
+		return self.lmY.sMax - self.lmY.sMin
 	@property
-	def dYAscender(self) -> float:
-		return abs(self.veex.yAscender)
-	@property
-	def dYCap(self) -> float:
-		return abs(self.veex.yCap)
-	@property
-	def dYDescender(self) -> float:
-		return abs(self.veex.yDescender)
+	def yGlyphsMin(self) -> float:
+		return self.lmY.sMin
 
 @dataclass
 class SColor: # tag = color
@@ -534,12 +570,12 @@ class COneLineTextBox: # tag = oltb
 	s_strControl: str = ''.join([chr(ucp) for tuMinMax in unicategories.categories['Cf'] for ucp in range(tuMinMax[0], tuMinMax[1])])
 	s_transRemoveControl = str.maketrans('', '', s_strControl)
 
-	def __init__(self, pdf: CPdf, rect: SRect, fontkey: SFontKey, dYFont: float, dSMargin: Optional[float] = None) -> None:
+	def __init__(self, pdf: CPdf, rect: SRect, fontkey: SFontKey, dYFont: float, dSMargin: Optional[float] = None, veklmEm: UVekLm = s_veklmEmDefault) -> None:
 		self.pdf = pdf
-		self.fonti = CFontInstance(pdf, fontkey, dYFont)
+		self.fonti = CFontInstance(pdf, fontkey, dYFont, veklmEm)
 		self.rect = rect
 
-		self.dSMargin = dSMargin or max(0.0, (self.rect.dY - self.fonti.dYCap) / 2.0)
+		self.dSMargin = dSMargin or max(0.0, (self.rect.dY - self.fonti.dYGlyphs) / 2.0)
 		self.rectMargin = self.rect.Copy().Inset(self.dSMargin)
 
 	def TryDrawText(self, x: float, y: float, strText: str):
@@ -575,25 +611,26 @@ class COneLineTextBox: # tag = oltb
 
 			# BB (bruceo) assert new width fits?
 
-		rectText = SRect(0, 0, dXText, self.fonti.dYCap)
+		rectExtent = SRect(0, 0, dXText, self.fonti.dYGlyphs)
 
 		if jh == JH.Left:
-			rectText.x = self.rectMargin.x
+			rectExtent.x = self.rectMargin.x
 		elif jh == JH.Center:
-			rectText.x = self.rectMargin.x + (self.rectMargin.dX - rectText.dX) / 2.0
+			rectExtent.x = self.rectMargin.x + (self.rectMargin.dX - rectExtent.dX) / 2.0
 		else:
 			assert jh == JH.Right
-			rectText.x = self.rectMargin.x + self.rectMargin.dX - rectText.dX
+			rectExtent.x = self.rectMargin.x + self.rectMargin.dX - rectExtent.dX
 
-		if jv == JV.Bottom:
-			rectText.y = self.rectMargin.y + self.rectMargin.dY
+		if jv == JV.Top:
+			rectExtent.y = self.rectMargin.y
 		elif jv == JV.Middle:
-			rectText.y = self.rectMargin.y + (self.rectMargin.dY + rectText.dY) / 2.0
+			rectExtent.y = self.rectMargin.y + (self.rectMargin.dY - rectExtent.dY) / 2.0
 		else:
-			assert jv == JV.Top
-			rectText.y = self.rectMargin.y + rectText.dY
-
-		rectExtent = rectText.Copy().Shift(dY = -rectText.dY)
+			assert jv == JV.Bottom
+			rectExtent.y = self.rectMargin.y + self.rectMargin.dY - rectExtent.dY
+ 
+		xLeft = rectExtent.x
+		yBaseline = rectExtent.yMax + self.fonti.yGlyphsMin
 
 		if box:
 			rectExtent = box.RectDraw(self.pdf, rectExtent)
@@ -602,10 +639,10 @@ class COneLineTextBox: # tag = oltb
 			dSLine = self.fonti.dPtFont * haloa.uPtLine
 			with self.pdf.local_context(text_mode="STROKE", line_width=dSLine):
 				self.pdf.set_draw_color(haloa.color.r, haloa.color.g, haloa.color.b)
-				self.TryDrawText(rectText.x, rectText.y, strText)
+				self.TryDrawText(xLeft, yBaseline, strText)
 
 		self.pdf.set_text_color(color.r, color.g, color.b)
-		self.TryDrawText(rectText.x, rectText.y, strText)
+		self.TryDrawText(xLeft, yBaseline, strText)
 
 		return rectExtent
 
@@ -623,8 +660,8 @@ class CBlot: # tag = blot
 	def FillBox(self, rect: SRect, colorFill: SColor) -> None:
 		SBox(colorFill = colorFill).Draw(self.pdf, rect)
 
-	def Oltb(self, rect: SRect, fontkey: SFontKey, dYFont: float, dSMargin: Optional[float] = None) -> COneLineTextBox:
-		return COneLineTextBox(self.pdf, rect, fontkey, dYFont, dSMargin)
+	def Oltb(self, rect: SRect, fontkey: SFontKey, dYFont: float, dSMargin: Optional[float] = None, veklmEm: UVekLm = s_veklmEmDefault) -> COneLineTextBox:
+		return COneLineTextBox(self.pdf, rect, fontkey, dYFont, dSMargin, veklmEm)
 
 	def Draw(self, pos: SPoint) -> None:
 		pass
