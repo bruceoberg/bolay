@@ -264,7 +264,12 @@ class CPdf(fpdf.FPDF):
 
 		glyphset = font.ttfont.getGlyphSet()
 
-		setCodepoint = {ord(ch) for strText in iterStr for ch in strText }
+		setCodepoint: set[int] = set()
+
+		for strText in iterStr:
+			strText = StrTextShaped(strText)
+			for ch in strText:
+				setCodepoint.add(ord(ch))
 
 		for codepoint in setCodepoint:
 			strGlyph = font.cmap.get(codepoint)
@@ -521,6 +526,17 @@ def FHasAnyRtl(strText: str) -> bool:
 
 	return False
 
+s_strControl: str = ''.join([chr(ucp) for tuMinMax in unicategories.categories['Cf'] for ucp in range(tuMinMax[0], tuMinMax[1])])
+s_transRemoveControl = str.maketrans('', '', s_strControl)
+
+def StrTextShaped(strText: str) -> str:
+	if FHasAnyRtl(strText):
+		strText = arabic_reshaper.reshape(strText)
+		strText = bidi.algorithm.get_display(strText, base_dir='R')
+		return strText.translate(s_transRemoveControl)
+	
+	return strText
+
 @dataclass
 class SBox:
 	"""box drawing parameters. line/fill/expansion/rounded-corners all optional."""
@@ -567,9 +583,6 @@ class SHaloArgs: # tag = haloa
 class COneLineTextBox: # tag = oltb
 	"""a box with a single line of text in a particular font, sized to fit the box"""
 	
-	s_strControl: str = ''.join([chr(ucp) for tuMinMax in unicategories.categories['Cf'] for ucp in range(tuMinMax[0], tuMinMax[1])])
-	s_transRemoveControl = str.maketrans('', '', s_strControl)
-
 	def __init__(self, pdf: CPdf, rect: SRect, fontkey: SFontKey, dYFont: float, dSMargin: Optional[float] = None, veklmEm: UVekLm = s_veklmEmDefault) -> None:
 		self.pdf = pdf
 		self.fonti = CFontInstance(pdf, fontkey, dYFont, veklmEm)
@@ -592,10 +605,8 @@ class COneLineTextBox: # tag = oltb
 			fShrinkToFit: bool = False,
 			haloa: Optional[SHaloArgs] = None,
 			box: Optional[SBox] = None) -> SRect:
-		if FHasAnyRtl(strText):
-			strText = arabic_reshaper.reshape(strText)
-			strText = bidi.algorithm.get_display(strText, base_dir='R')
-			strText = strText.translate(self.s_transRemoveControl)
+		
+		strText = StrTextShaped(strText)
 
 		self.pdf.set_font(self.fonti.fontkey.strFont, style=self.fonti.fontkey.strStyle, size=self.fonti.dPtFont)
 		dXText = self.pdf.get_string_width(strText)
