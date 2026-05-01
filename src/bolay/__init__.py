@@ -7,10 +7,10 @@ import unicategories
 import unicodedata
 
 from enum import IntEnum, auto
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from fontTools.pens.boundsPen import BoundsPen
 from pathlib import Path
-from typing import Optional, Iterable, Iterator
+from typing import Optional, Iterable, Iterator, NamedTuple
 
 class IntEnum0(IntEnum):
     """IntEnum that uses auto() starting from 0."""
@@ -59,27 +59,23 @@ class EnumTuple[TEnum: IntEnum0, TValue]:
         """Return iterator over (enum, value) pairs."""
         return zip(self.clsEnum, self.mpEnumValue)
 		
-@dataclass(frozen=True)
-class SFontKey: # tag = fontkey
+class SFontKey(NamedTuple): # tag = fontkey
 	strFont: str
 	strStyle: str
 
 	def Str(self) -> str:
 		return self.strFont.lower() + self.strStyle
 
-@dataclass(frozen=True)
-class SFontkeyGlyph: # tag = fkg
+class SFontkeyGlyph(NamedTuple): # tag = fkg
 	fontkey: SFontKey
 	strGlyph: str
 
-@dataclass(frozen=True)
-class SVertExtents: # tag = verx
+class SVertExtents(NamedTuple): # tag = verx
 	yAscender: float = 0
 	yCap: float = 0
 	yDescender: float = 0
 
-@dataclass(frozen=True)
-class SLimit: # tag = lm
+class SLimit(NamedTuple): # tag = lm
 	sMin: float = 0
 	sMax: float = 0
 
@@ -355,7 +351,7 @@ class CFontInstance:
 	def yGlyphsMin(self) -> float:
 		return self.lmY.sMin
 
-@dataclass
+@dataclass(slots=True)
 class SColor: # tag = color
 	r: int = 0
 	g: int = 0
@@ -383,7 +379,7 @@ def ColorResaturate(color: SColor, rS: float = 1.0, dS: float = 0.0, rV: float =
 def FIsSaturated(color: SColor) -> bool:
 	return colorsys.rgb_to_hsv(color.r / 255.0, color.g / 255.0, color.b / 255.0)[1] > 0.0
 
-@dataclass
+@dataclass(slots=True)
 class SPoint: # tag = pos
 	x: float = 0
 	y: float = 0
@@ -537,7 +533,7 @@ def StrTextShaped(strText: str) -> str:
 	
 	return strText
 
-@dataclass
+@dataclass(slots=True)
 class SBox:
 	"""box drawing parameters. line/fill/expansion/rounded-corners all optional."""
 
@@ -575,7 +571,7 @@ class SBox:
 	
 	Draw = RectDraw
 
-@dataclass
+@dataclass(slots=True)
 class SHaloArgs: # tag = haloa
 	color: SColor
 	uPtLine: float # factor of point size for halo line
