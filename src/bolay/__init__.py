@@ -13,51 +13,51 @@ from pathlib import Path
 from typing import Optional, Iterable, Iterator, NamedTuple
 
 class IntEnum0(IntEnum):
-    """IntEnum that uses auto() starting from 0."""
-    
-    @staticmethod
-    def _generate_next_value_(name, start, count, last_values):
-        """Override to start auto() at 0 instead of 1."""
-        return count
+	"""IntEnum that uses auto() starting from 0."""
+	
+	@staticmethod
+	def _generate_next_value_(name, start, count, last_values):
+		"""Override to start auto() at 0 instead of 1."""
+		return count
 
 class EnumTuple[TEnum: IntEnum0, TValue]:
-    """Fixed-size tuple indexed by enum values."""
-    
-    def __init__(self, clsEnum: type[TEnum], mpEnumValue: tuple[TValue, ...]):
-        self.clsEnum = clsEnum
-        self.mpEnumValue = mpEnumValue
-        
-        # Get all enum members
-        lEnum = list(clsEnum)
-        cEnumExpected = len(lEnum)
-        
-        assert len(mpEnumValue) == cEnumExpected, \
-            f"EnumTuple for {clsEnum.__name__} requires {cEnumExpected} elements, got {len(mpEnumValue)}"
-        
-        # Validate contiguity: enum values should be 0, 1, 2, ..., cEnumExpected-1
-        lValue = sorted([m.value for m in lEnum])
-        assert lValue == list(range(cEnumExpected)), \
-            f"EnumTuple requires {clsEnum.__name__} to have contiguous values 0..{cEnumExpected-1}, got {lValue}"
-    
-    def __getitem__(self, key: TEnum | int) -> TValue:
-        if isinstance(key, self.clsEnum):
-            return self.mpEnumValue[key.value]
-        return self.mpEnumValue[key]
-    
-    def __len__(self) -> int:
-        return len(self.mpEnumValue)
+	"""Fixed-size tuple indexed by enum values."""
+	
+	def __init__(self, clsEnum: type[TEnum], mpEnumValue: tuple[TValue, ...]):
+		self.clsEnum = clsEnum
+		self.mpEnumValue = mpEnumValue
+		
+		# Get all enum members
+		lEnum = list(clsEnum)
+		cEnumExpected = len(lEnum)
+		
+		assert len(mpEnumValue) == cEnumExpected, \
+			f"EnumTuple for {clsEnum.__name__} requires {cEnumExpected} elements, got {len(mpEnumValue)}"
+		
+		# Validate contiguity: enum values should be 0, 1, 2, ..., cEnumExpected-1
+		lValue = sorted([m.value for m in lEnum])
+		assert lValue == list(range(cEnumExpected)), \
+			f"EnumTuple requires {clsEnum.__name__} to have contiguous values 0..{cEnumExpected-1}, got {lValue}"
+	
+	def __getitem__(self, key: TEnum | int) -> TValue:
+		if isinstance(key, self.clsEnum):
+			return self.mpEnumValue[key.value]
+		return self.mpEnumValue[key]
+	
+	def __len__(self) -> int:
+		return len(self.mpEnumValue)
 
-    def keys(self) -> Iterator[TEnum]:
-        """Return iterator over enum members."""
-        return iter(self.clsEnum)
-    
-    def values(self) -> Iterator[TValue]:
-        """Return iterator over values."""
-        return iter(self.mpEnumValue)
-    
-    def items(self) -> Iterator[tuple[TEnum, TValue]]:
-        """Return iterator over (enum, value) pairs."""
-        return zip(self.clsEnum, self.mpEnumValue)
+	def keys(self) -> Iterator[TEnum]:
+		"""Return iterator over enum members."""
+		return iter(self.clsEnum)
+	
+	def values(self) -> Iterator[TValue]:
+		"""Return iterator over values."""
+		return iter(self.mpEnumValue)
+	
+	def items(self) -> Iterator[tuple[TEnum, TValue]]:
+		"""Return iterator over (enum, value) pairs."""
+		return zip(self.clsEnum, self.mpEnumValue)
 		
 class SFontKey(NamedTuple): # tag = fontkey
 	strFont: str
@@ -375,6 +375,55 @@ def ColorResaturate(color: SColor, rS: float = 1.0, dS: float = 0.0, rV: float =
 	v = min(1.0, max(0.0, v * rV + dV))
 	r, g, b = colorsys.hsv_to_rgb(h, s, v)
 	return SColor(round(r * 255), round(g * 255), round(b * 255), color.a)
+
+def LstarFromColor(color: SColor) -> float:
+	# sRGB → linear RGB → L*
+
+	def UDegamma(u: float) -> float:
+		# sRGB -> linear RGB
+		# https://en.wikipedia.org/wiki/SRGB
+		return u/12.92 if u <= 0.04045 else ((u+0.055)/1.055)**2.4
+	
+	r, g, b = UDegamma(color.r/255), UDegamma(color.g/255), UDegamma(color.b/255)
+	
+	# Y component of CIE XYZ space
+	# https://en.wikipedia.org/wiki/SRGB#Primaries
+	
+	y = r*0.2126729 + g*0.7151522 + b*0.0721750
+	
+	# L* component of CIELAB space
+	# https://en.wikipedia.org/wiki/CIELAB_color_space#From_CIE_XYZ_to_CIELAB
+	
+	fy = y**(1/3) if y > 0.008856 else 7.787*y + 16/116
+	
+	return 116*fy - 16
+	
+def ColorResaturateDarker(
+		color: SColor,
+		rS: float = 1.0,
+		dS: float = 0.0,
+		rV: float = 1.0,
+		dV: float = 0.0,
+		lstarMax: float = 55.0) -> SColor:
+	
+	colorResult = ColorResaturate(color, rS=rS, dS=dS, rV=rV, dV=dV)
+	
+	if LstarFromColor(colorResult) > lstarMax:
+		# binary search V downward until L* is at or below threshold
+		h, s, v = colorsys.rgb_to_hsv(colorResult.r/255, colorResult.g/255, colorResult.b/255)
+		vMin, vMax = 0.0, v
+		for _ in range(16):  # 16 iterations gives <0.001 precision
+			vMid = (vMin + vMax) / 2
+			r, g, b = colorsys.hsv_to_rgb(h, s, vMid)
+			colorMid = SColor(round(r * 255), round(g * 255), round(b * 255), color.a)
+			if LstarFromColor(colorMid) > lstarMax:
+				vMax = vMid
+			else:
+				vMin = vMid
+		r, g, b = colorsys.hsv_to_rgb(h, s, vMin)
+		colorResult = SColor(round(r * 255), round(g * 255), round(b * 255), color.a)
+	
+	return colorResult
 
 def FIsSaturated(color: SColor) -> bool:
 	return colorsys.rgb_to_hsv(color.r / 255.0, color.g / 255.0, color.b / 255.0)[1] > 0.0
