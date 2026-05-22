@@ -633,7 +633,7 @@ class COneLineTextBox: # tag = oltb
 		self.fonti = CFontInstance(pdf, fontkey, dYFont, veklmEm)
 		self.rect = rect
 
-		self.dSMargin = dSMargin or max(0.0, (self.rect.dY - self.fonti.dYGlyphs) / 2.0)
+		self.dSMargin = dSMargin if dSMargin is not None else max(0.0, (self.rect.dY - self.fonti.dYGlyphs) / 2.0)
 		self.rectMargin = self.rect.Copy().Inset(self.dSMargin)
 
 	def TryDrawText(self, x: float, y: float, strText: str):
