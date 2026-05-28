@@ -351,7 +351,7 @@ class CFontInstance:
 	def yGlyphsMin(self) -> float:
 		return self.lmY.sMin
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class SColor: # tag = color
 	r: int = 0
 	g: int = 0
