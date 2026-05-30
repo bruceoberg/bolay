@@ -7,10 +7,16 @@ import unicategories
 import unicodedata
 
 from enum import IntEnum, auto
+from fpdf.drawing import DeviceGray, DeviceRGB, DeviceCMYK
+from fpdf.enums import OutputIntentSubType
+from fpdf.output import PDFICCProfile
 from dataclasses import dataclass
 from fontTools.pens.boundsPen import BoundsPen
 from pathlib import Path
+from PIL import Image, ImageCms
 from typing import Optional, Iterable, Iterator, NamedTuple
+
+g_pathThis = Path(__file__).parent
 
 class IntEnum0(IntEnum):
 	"""IntEnum that uses auto() starting from 0."""
@@ -111,6 +117,14 @@ type UVekLm = VEK | SLimit # tag = veklm
 s_veklmEmDefault: UVekLm = VEK.BaseCap
 
 
+@dataclass(frozen=True, slots=True)
+class SColor: # tag = color
+	r: int = 0
+	g: int = 0
+	b: int = 0
+	a: int = 255
+
+
 class CPdf(fpdf.FPDF):
 	s_mpStrFormatWH: dict[str, tuple[float, float]] = {
 		# most sizes pulled from https://en.wikipedia.org/wiki/Paper_size
@@ -207,6 +221,11 @@ class CPdf(fpdf.FPDF):
 		self.mpFontkeyVeexEm: dict[SFontKey, SVertExtents] = {}
 		self.mpFkgVeexEm: dict[SFontkeyGlyph, SVertExtents] = {}
 
+		# color transformer and advertised model
+
+		self.coltr = CColorTransformer()
+		self.AddIntent()
+
 	def AddFont(self, strFontkey: str, strStyle: str, path: Path):
 		self.add_font(family=strFontkey, style=strStyle, fname=str(path))
 
@@ -301,6 +320,36 @@ class CPdf(fpdf.FPDF):
 		veex = veexEmAggregate if veexEmAggregate else self.VeexEm(fontkey)
 				
 		return LmFromVekVeex(vek, veex)
+	
+	def SetDrawColor(self, color: SColor) -> None:
+		self.set_draw_color(self.coltr.DevcolFromColor(color))
+
+	def SetFillColor(self, color: SColor) -> None:
+		self.set_fill_color(self.coltr.DevcolFromColor(color))
+
+	def SetTextColor(self, color: SColor) -> None:
+		self.set_text_color(self.coltr.DevcolFromColor(color))
+
+	def AddIntent(self) -> None:
+		if self.coltr.iccTo == ICC.Srgb:
+			return
+		
+		iccd = s_mpIccIccd[self.coltr.iccTo]
+		assert iccd.strLayout == "CMYK"
+
+		with open(Path(iccd.pathIcc), "rb") as f:
+			iccprof = PDFICCProfile(
+						contents  = f.read(),
+						n         = 4,             # CMYK = 4 channels
+						alternate = "DeviceCMYK")
+
+		self.add_output_intent(
+				subtype                     = OutputIntentSubType.PDFX,
+				output_condition_identifier = iccd.strId,
+				output_condition            = iccd.strFriendly,
+				registry_name               = "https://registry.color.org",
+				dest_output_profile         = iccprof,
+				info                        = iccd.pathIcc.name)
 
 class JH(IntEnum0):
 	Left = auto()
@@ -350,13 +399,6 @@ class CFontInstance:
 	@property
 	def yGlyphsMin(self) -> float:
 		return self.lmY.sMin
-
-@dataclass(frozen=True, slots=True)
-class SColor: # tag = color
-	r: int = 0
-	g: int = 0
-	b: int = 0
-	a: int = 255
 
 def ColorFromStr(strColor: str, alpha: int = 255) -> SColor:
 	r, g, b = fpdf.html.color_as_decimal(strColor).colors255
@@ -427,6 +469,115 @@ def ColorResaturateDarker(
 
 def FIsSaturated(color: SColor) -> bool:
 	return colorsys.rgb_to_hsv(color.r / 255.0, color.g / 255.0, color.b / 255.0)[1] > 0.0
+
+# color correction via ICC profiles
+# lotsa discussion here: https://claude.ai/share/dc7244d3-cb0d-449b-9b66-60f0f994e8ce
+
+class ICC(IntEnum0):
+	Srgb = auto()
+	Gracol = auto()
+	Swop = auto()
+	Fogra = auto()
+
+@dataclass(slots=True, frozen=True)
+class SIccData: # tag = iccd
+	strLayout: str		# a pillow mode name
+	pathIcc: Path		# path to ICC file
+	strId: str			# registry ID
+	strFriendly: str	# friendly name
+
+s_pathIcc = g_pathThis / "icc"
+
+s_mpIccIccd: EnumTuple[ICC, SIccData] = EnumTuple(ICC, (
+	SIccData(	# ICC.Srgb
+		"RGB",	
+		s_pathIcc / "sRGB2014.icc",
+		"sRGB2014",
+		"IEC 61966-2-1 Default RGB Colour Space - sRGB"),
+	SIccData(	# ICC.Gracol
+		"CMYK",
+		s_pathIcc / "GRACoL2013UNC_CRPC3.icc",
+		"CGATS21-2-CRPC3",
+		"GRACoL 2013 Uncoated (CRPC3)"),
+	SIccData(	# ICC.Swop
+		"CMYK",
+		s_pathIcc / "adobe" / "CMYK" / "USWebUncoated.icc",
+		"U.S. Web Uncoated v2",
+		"U.S. Web Uncoated v2"),
+	SIccData(	# ICC.Fogra
+		"CMYK",
+		s_pathIcc / "PSOuncoated_v3_FOGRA52.icc",
+		"FOGRA52",
+		"PSO Uncoated v3 (FOGRA52)"),
+))
+
+type DevColor = DeviceGray | DeviceRGB | DeviceCMYK
+
+@dataclass(slots=True, frozen=True)
+class SRgb: # tag = rgb
+	r: int
+	g: int
+	b: int
+
+@dataclass(slots=True, frozen=True)
+class SCmyk: # tag = cmyk
+	c: int
+	m: int
+	y: int
+	k: int
+
+class CColorTransformer: # tag = coltr
+	def __init__(self, iccTo: ICC = ICC.Srgb) -> None:
+		self.iccFrom = ICC.Srgb
+		self.iccTo = iccTo
+
+		if self.iccTo != self.iccFrom:
+			self.mpRgbCmyk: dict[SRgb, SCmyk] = {}
+
+			iccdFrom = s_mpIccIccd[self.iccFrom]
+			strPathFrom = str(iccdFrom.pathIcc)
+			
+			iccdTo = s_mpIccIccd[self.iccTo]
+			strPathTo = str(iccdTo.pathIcc)
+
+			self.xform = ImageCms.buildTransform(
+									strPathFrom,
+									strPathTo,
+									iccdFrom.strLayout,
+									iccdTo.strLayout,
+									renderingIntent=ImageCms.Intent.RELATIVE_COLORIMETRIC)
+			
+	def CmykFromRgb(self, rgb: SRgb) -> SCmyk:
+		assert self.xform
+		imgRgb = Image.new("RGB", (1, 1), (int(rgb.r), int(rgb.g), int(rgb.b)))
+		imgCmyk = ImageCms.applyTransform(imgRgb, self.xform)
+		pixel = imgCmyk.getpixel((0, 0))  # (C, M, Y, K) each 0-255
+		assert type(pixel) is tuple and len(pixel) == 4
+		return SCmyk(pixel[0], pixel[1], pixel[2], pixel[3])
+
+	def DevcolFromColor(self, color: SColor) -> DevColor:
+		if color.r == color.g and color.g == color.b:
+			return DeviceGray(color.r / 255.0)
+		
+		if self.iccTo == self.iccFrom:
+			assert self.iccTo == ICC.Srgb
+			return DeviceRGB(
+					color.r / 255.0,
+					color.g / 255.0,
+					color.b / 255.0)
+		
+		rgb = SRgb(color.r, color.g, color.b)
+		try:
+			cmyk = self.mpRgbCmyk[rgb]
+		except KeyError:
+			cmyk = self.CmykFromRgb(rgb)
+			self.mpRgbCmyk[rgb] = cmyk
+
+		return DeviceCMYK(
+				cmyk.c / 255.0,
+				cmyk.m / 255.0,
+				cmyk.y / 255.0,
+				cmyk.k / 255.0)
 
 @dataclass(slots=True)
 class SPoint: # tag = pos
@@ -606,10 +757,10 @@ class SBox:
 
 		if self.dSLine and self.colorLine is not None:
 			pdf.set_line_width(self.dSLine)
-			pdf.set_draw_color(self.colorLine.r, self.colorLine.g, self.colorLine.b)
+			pdf.SetDrawColor(self.colorLine)
 
 		if self.colorFill is not None:
-			pdf.set_fill_color(self.colorFill.r, self.colorFill.g, self.colorFill.b)
+			pdf.SetFillColor(self.colorFill)
 
 		if self.dSRounded:
 			pdf.rect(rectDraw.x, rectDraw.y, rectDraw.dX, rectDraw.dY, style=strFillDraw, round_corners=True, corner_radius=self.dSRounded)
@@ -694,10 +845,10 @@ class COneLineTextBox: # tag = oltb
 		if haloa:
 			dSLine = self.fonti.dPtFont * haloa.uPtLine
 			with self.pdf.local_context(text_mode="STROKE", line_width=dSLine):
-				self.pdf.set_draw_color(haloa.color.r, haloa.color.g, haloa.color.b)
+				self.pdf.SetDrawColor(haloa.color)
 				self.TryDrawText(xLeft, yBaseline, strText)
 
-		self.pdf.set_text_color(color.r, color.g, color.b)
+		self.pdf.SetTextColor(color)
 		self.TryDrawText(xLeft, yBaseline, strText)
 
 		return rectExtent
