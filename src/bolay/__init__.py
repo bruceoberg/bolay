@@ -124,6 +124,11 @@ class SColor: # tag = color
 	b: int = 0
 	a: int = 255
 
+class ICC(IntEnum0):
+	Srgb = auto()
+	Gracol = auto()
+	Swop = auto()
+	Fogra = auto()
 
 class CPdf(fpdf.FPDF):
 	s_mpStrFormatWH: dict[str, tuple[float, float]] = {
@@ -211,7 +216,7 @@ class CPdf(fpdf.FPDF):
 		'40x60': (2880.00, 4320.00),	# 40in x 60in office depot exclusive?
 	}
 
-	def __init__(self):
+	def __init__(self, icc: ICC = ICC.Srgb) -> None:
 		fpdf.fpdf.PAGE_FORMATS.update(self.s_mpStrFormatWH)
 
 		super().__init__(unit='in')
@@ -223,7 +228,7 @@ class CPdf(fpdf.FPDF):
 
 		# color transformer and advertised model
 
-		self.coltr = CColorTransformer()
+		self.coltr = CColorTransformer(icc)
 		self.AddIntent()
 
 	def AddFont(self, strFontkey: str, strStyle: str, path: Path):
@@ -469,15 +474,6 @@ def ColorResaturateDarker(
 
 def FIsSaturated(color: SColor) -> bool:
 	return colorsys.rgb_to_hsv(color.r / 255.0, color.g / 255.0, color.b / 255.0)[1] > 0.0
-
-# color correction via ICC profiles
-# lotsa discussion here: https://claude.ai/share/dc7244d3-cb0d-449b-9b66-60f0f994e8ce
-
-class ICC(IntEnum0):
-	Srgb = auto()
-	Gracol = auto()
-	Swop = auto()
-	Fogra = auto()
 
 @dataclass(slots=True, frozen=True)
 class SIccData: # tag = iccd
